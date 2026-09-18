@@ -175,10 +175,16 @@ docker run --rm -p 8000:8000 \
 curl http://localhost:8000/health
 ```
 
-A commit-pinned tag is also published as `ghcr.io/rehan0087/shouro-llm:<git-sha>`
-for an exact, immutable reference. The image exposes port 8000, binds to
-`0.0.0.0`, and contains no baked-in credentials — all keys are supplied at
-`docker run` time via `-e`.
+A commit-pinned tag is also published as `ghcr.io/rehan0087/shouro-llm:sha-<git-sha>`
+for an exact, immutable reference. Latest known-good build:
+
+```
+ghcr.io/rehan0087/shouro-llm:sha-98169cdb82d04076c810a361da8a5ffc7dae4c98
+digest: sha256:ebb2abdc7941d52c2b2dc5a7d0e7034b81da1e3bf44001fe4f52312f3f5a5d0d
+```
+
+The image exposes port 8000, binds to `0.0.0.0`, and contains no baked-in
+credentials — all keys are supplied at `docker run` time via `-e`.
 
 Note: while this repository is private, the built package is also private —
 make it public at the same time the repository is made public after the
