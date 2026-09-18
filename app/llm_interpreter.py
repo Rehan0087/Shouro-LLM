@@ -39,6 +39,11 @@ SUPPORTED DIRECTIVE TYPES
 2. minimum_battery_reserve - {"hours": [int...], "minimum_energy_kwh": number}
    If the note states a percentage of capacity, convert it to an absolute kWh value using the
    battery capacity given to you. Example: 50% of a 200 kWh battery -> minimum_energy_kwh 100.
+   Get the hours window right too, independently of the kWh value -- these are two separate
+   sub-tasks worth equal care; do not let solving the numeric conversion distract from correctly
+   counting the hours, or vice versa. A note giving both a reserve amount AND a multi-hour window
+   is common -- always double check the hour count against the (end_hour - start_hour) rule above
+   before finalizing, even when the numeric value was easy.
 3. no_charge_window - {"hours": [int...]}
 4. no_discharge_window - {"hours": [int...]}
 5. max_grid_window - {"hours": [int...], "max_grid_kwh": number}
@@ -54,7 +59,15 @@ the identical start-inclusive/end-exclusive range. "between 2 and 4 PM" means EX
 thing as "from 2 PM to 4 PM" or "2 PM until 4 PM" -- do not treat "between" as including both
 endpoints.
 "1 PM to 3 PM" -> hours [13, 14] (NOT 15, a 2-hour window).
-"6 PM until 9 PM" -> hours [18, 19, 20] (a 3-hour window).
+"3 PM until 6 PM" -> hours [15, 16, 17] (a 3-hour window).
+"5 PM until 9 PM" -> hours [17, 18, 19, 20] (a 4-hour window -- 9 PM is hour 21, so the
+last INCLUDED hour is 20. A common mistake is stopping one hour early at 19; verify by
+counting: 20 - 17 = 4 entries, [17, 18, 19, 20]).
+"8 PM until 11 PM" -> hours [20, 21, 22] (a 3-hour window, same reasoning: 23 - 20 = 3
+entries, NOT [20, 21]).
+This "count the entries" check matters most for windows ending on a whole multiple of 10 or 11
+o'clock and for windows longer than 2 hours -- those are the cases most often shortened by one
+hour in error.
 "between 2 and 4 PM" -> hours [14, 15] (a 2-hour window, same as "2 PM to 4 PM" -- NOT
 [14, 15, 16]).
 A SINGLE-HOUR window is common and correct: "10 to 11 AM" or "from 10 AM to 11 AM" -> hours
@@ -68,14 +81,24 @@ Example: "1 AM to 3 AM" -> start hour is 1 (NOT 0), end hour is 3 (exclusive) ->
 When a range gives one AM/PM marker for both numbers (e.g. "10 to 11 AM"), apply it to both.
 24-hour clock references (e.g. "13:00") map directly to that hour.
 
-CROSS-MIDNIGHT WINDOWS: if a range crosses midnight (the end clock time is numerically earlier
-than the start), list the resulting hours in ascending NUMERICAL order (0-23), never in
-chronological/listening order. "11 PM to 1 AM" covers the 11 PM hour (23) and the 12 AM hour
-(0), so the required output is hours [0, 23] -- NOT [23, 0], which is descending and will be
-rejected. Always sort the final hours list numerically ascending before returning it, regardless
-of which hour the window started at.
+"MIDNIGHT" AS AN END BOUNDARY: when a range ends AT "midnight" (not an AM hour past it), that is
+simply the end of the current day -- treat it as hour 24, i.e. the window runs through hour 23
+and stops, with NO wraparound into hour 0. "10 PM and midnight" -> hours [22, 23] (2 hours: 22,
+23 -- the day just ends there). "6 PM until midnight" -> hours [18, 19, 20, 21, 22, 23] (6
+hours). Do NOT apply cross-midnight wraparound logic here; "midnight" ending a same-evening
+window is NOT the same as a range that continues into an AM hour the next day.
+
+CROSS-MIDNIGHT WINDOWS (only when the end is an explicit AM hour, e.g. "11 PM to 1 AM", "10 PM
+to 2 AM" -- genuinely continuing past midnight, NOT ending at "midnight" itself): list the
+resulting hours in ascending NUMERICAL order (0-23), never in chronological/listening order.
+"11 PM to 1 AM" covers the 11 PM hour (23) and the 12 AM hour (0), so the required output is
+hours [0, 23] -- NOT [23, 0], which is descending and will be rejected. Always sort the final
+hours list numerically ascending before returning it, regardless of which hour the window
+started at.
 General rule: the hours list always has exactly (end_hour - start_hour) entries, counting up
-from start_hour and stopping before end_hour.
+from start_hour and stopping before end_hour. Before finalizing any hours array with more than
+one entry, count its length and verify it equals (end_hour - start_hour) exactly -- this check
+catches the single most common error in this task.
 
 INTERPRETATION RULES
 - Every note produces exactly one entry, using its 0-based position in the note list as note_index.

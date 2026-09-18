@@ -71,6 +71,20 @@ SINGLE_NOTE_CASES = [
     ("Parking permits for the east lot increase to 500 taka starting next semester.", dict(applies=False, directive_type="no_op")),
     ("IT will restart the campus wifi routers between 2 and 3 AM tonight.", dict(applies=False, directive_type="no_op")),
     ("The vice chancellor's office moved tomorrow's 10 AM meeting to 1 PM.", dict(applies=False, directive_type="no_op")),
+    # --- regression: windows ending at "10 PM" (hour 22) were consistently
+    # truncated by one hour live in production -- found by re-testing the
+    # official public sample pack (SAMPLE-07, SAMPLE-10) against the
+    # deployed service, not by the original stress-test set. ---
+    (
+        "Keep at least 90 kWh in the battery from 6 PM until 10 PM for emergency services.",
+        dict(applies=True, directive_type="minimum_battery_reserve", hours=[18, 19, 20, 21], minimum_energy_kwh=90.0),
+    ),
+    (
+        "Grid intake must stay at or below 190 kWh from 7 PM until 10 PM while the substation is constrained.",
+        dict(applies=True, directive_type="max_grid_window", hours=[19, 20, 21], max_grid_kwh=190.0),
+    ),
+    # Note: the "X PM and midnight" / cross-midnight-boundary regression is
+    # already covered by the "quarter of its full capacity" case above.
     # --- directive-type discrimination: worded to sound like a different
     # directive than the correct one, so the model can't pattern-match on
     # surface keywords (e.g. "battery" -> always reserve). ---
