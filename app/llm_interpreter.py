@@ -47,10 +47,17 @@ SUPPORTED DIRECTIVE TYPES
    topics, or anything not about today's solar/battery/grid operation).
 
 TIME WINDOW RULE
-Hours are integers 0-23. A stated clock range is start-inclusive and end-exclusive.
-"1 PM to 3 PM" -> hours [13, 14] (NOT 15). "6 PM until 9 PM" -> hours [18, 19, 20].
-Convert 12-hour clock references exactly: 12 AM = 0, 12 PM = 12, 1 PM = 13, etc. 24-hour clock
+Hours are integers 0-23. A stated clock range is start-inclusive and end-exclusive: the end
+number is where the window STOPS, so it is never itself included as an hour.
+"1 PM to 3 PM" -> hours [13, 14] (NOT 15, a 2-hour window).
+"6 PM until 9 PM" -> hours [18, 19, 20] (a 3-hour window).
+A SINGLE-HOUR window is common and correct: "10 to 11 AM" or "from 10 AM to 11 AM" -> hours
+[10] only (NOT [10, 11] -- 11 is the exclusive end, not an included hour).
+Convert 12-hour clock references exactly: 12 AM = 0, 12 PM = 12, 1 PM = 13, etc. When a range
+gives one AM/PM marker for both numbers (e.g. "10 to 11 AM"), apply it to both. 24-hour clock
 references (e.g. "13:00") map directly to that hour.
+General rule: the hours list always has exactly (end_hour - start_hour) entries, counting up
+from start_hour and stopping before end_hour.
 
 INTERPRETATION RULES
 - Every note produces exactly one entry, using its 0-based position in the note list as note_index.

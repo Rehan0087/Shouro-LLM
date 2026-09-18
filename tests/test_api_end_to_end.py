@@ -49,6 +49,55 @@ def test_missing_fields_returns_400():
     assert resp.status_code == 400
 
 
+def test_infeasible_scenario_returns_controlled_500(monkeypatch):
+    """A scenario the optimizer genuinely cannot satisfy must fail safely
+    (500, no stack trace, no crash) rather than return an invalid schedule."""
+    case = CASES[0]
+    inp = dict(case["input"])
+    inp["battery"] = {
+        "capacity_kwh": 50.0,
+        "initial_energy_kwh": 25.0,
+        "minimum_energy_kwh": 0.0,
+        "max_charge_kwh_per_hour": 5.0,
+        "max_discharge_kwh_per_hour": 5.0,
+    }
+    inp["hours"] = [
+        {"hour": h, "demand_kwh": 500.0, "solar_kwh": 0.0, "tariff_bdt_per_kwh": 10.0} for h in range(24)
+    ]
+
+    def fake_interpret_notes(operator_notes, battery_capacity_kwh, guardrail_check):
+        # Force a hard grid cap of 0 with far too little solar/battery to
+        # cover demand -- genuinely unsatisfiable energy balance.
+        entries = [
+            {
+                "note_index": 0,
+                "applies": True,
+                "directive_type": "max_grid_window",
+                "structured_adjustment": {"hours": list(range(24)), "max_grid_kwh": 0.0},
+                "explanation": "test",
+            }
+        ]
+        entries += [
+            {
+                "note_index": i,
+                "applies": False,
+                "directive_type": "no_op",
+                "structured_adjustment": None,
+                "explanation": "test",
+            }
+            for i in range(1, len(operator_notes))
+        ]
+        return entries
+
+    monkeypatch.setattr("app.pipeline.llm_interpreter.interpret_notes", fake_interpret_notes)
+
+    resp = client.post("/optimize-energy", json=inp)
+    assert resp.status_code == 500
+    body = resp.json()
+    assert "error" in body
+    assert "Traceback" not in json.dumps(body)
+
+
 @pytest.mark.parametrize("case", CASES, ids=[c["id"] for c in CASES])
 def test_full_pipeline_with_ground_truth_llm(case, monkeypatch):
     inp = case["input"]

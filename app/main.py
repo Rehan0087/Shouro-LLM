@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from fastapi import FastAPI, Request
@@ -36,7 +37,12 @@ async def optimize_energy(request: Request):
         return JSONResponse(status_code=400, content={"error": "invalid request schema", "details": exc.errors()})
 
     try:
-        result = run_pipeline(parsed.model_dump())
+        # run_pipeline makes a blocking LLM HTTP call; running it on a worker
+        # thread keeps the event loop free so /health and other concurrent
+        # requests aren't stalled behind it (Problem Statement section 08:
+        # "the submitted service must remain reachable ... including
+        # repeated LLM-backed requests").
+        result = await asyncio.to_thread(run_pipeline, parsed.model_dump())
     except PipelineError as exc:
         logger.error("pipeline error for scenario %s: %s", parsed.scenario_id, exc)
         return JSONResponse(status_code=500, content={"error": "unable to produce a valid schedule for this scenario"})
