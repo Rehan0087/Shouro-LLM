@@ -35,6 +35,12 @@ def test_health():
     assert resp.json() == {"status": "ok"}
 
 
+def test_root_redirects_to_docs_instead_of_404():
+    resp = client.get("/", follow_redirects=False)
+    assert resp.status_code in (302, 307)
+    assert resp.headers["location"] == "/docs"
+
+
 def test_malformed_json_returns_400():
     resp = client.post(
         "/optimize-energy",

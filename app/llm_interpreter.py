@@ -48,14 +48,32 @@ SUPPORTED DIRECTIVE TYPES
 
 TIME WINDOW RULE
 Hours are integers 0-23. A stated clock range is start-inclusive and end-exclusive: the end
-number is where the window STOPS, so it is never itself included as an hour.
+number is where the window STOPS, so it is never itself included as an hour. This holds no
+matter which connecting word is used -- "to", "until", "between X and Y", "from X to Y" all mean
+the identical start-inclusive/end-exclusive range. "between 2 and 4 PM" means EXACTLY the same
+thing as "from 2 PM to 4 PM" or "2 PM until 4 PM" -- do not treat "between" as including both
+endpoints.
 "1 PM to 3 PM" -> hours [13, 14] (NOT 15, a 2-hour window).
 "6 PM until 9 PM" -> hours [18, 19, 20] (a 3-hour window).
+"between 2 and 4 PM" -> hours [14, 15] (a 2-hour window, same as "2 PM to 4 PM" -- NOT
+[14, 15, 16]).
 A SINGLE-HOUR window is common and correct: "10 to 11 AM" or "from 10 AM to 11 AM" -> hours
 [10] only (NOT [10, 11] -- 11 is the exclusive end, not an included hour).
-Convert 12-hour clock references exactly: 12 AM = 0, 12 PM = 12, 1 PM = 13, etc. When a range
-gives one AM/PM marker for both numbers (e.g. "10 to 11 AM"), apply it to both. 24-hour clock
-references (e.g. "13:00") map directly to that hour.
+
+CLOCK-TO-HOUR CONVERSION (apply exactly, double-check AM hours especially):
+12 AM=0, 1 AM=1, 2 AM=2, 3 AM=3, 4 AM=4, 5 AM=5, 6 AM=6, 7 AM=7, 8 AM=8, 9 AM=9, 10 AM=10,
+11 AM=11, 12 PM=12, 1 PM=13, 2 PM=14, 3 PM=15, 4 PM=16, 5 PM=17, 6 PM=18, 7 PM=19, 8 PM=20,
+9 PM=21, 10 PM=22, 11 PM=23.
+Example: "1 AM to 3 AM" -> start hour is 1 (NOT 0), end hour is 3 (exclusive) -> hours [1, 2].
+When a range gives one AM/PM marker for both numbers (e.g. "10 to 11 AM"), apply it to both.
+24-hour clock references (e.g. "13:00") map directly to that hour.
+
+CROSS-MIDNIGHT WINDOWS: if a range crosses midnight (the end clock time is numerically earlier
+than the start), list the resulting hours in ascending NUMERICAL order (0-23), never in
+chronological/listening order. "11 PM to 1 AM" covers the 11 PM hour (23) and the 12 AM hour
+(0), so the required output is hours [0, 23] -- NOT [23, 0], which is descending and will be
+rejected. Always sort the final hours list numerically ascending before returning it, regardless
+of which hour the window started at.
 General rule: the hours list always has exactly (end_hour - start_hour) entries, counting up
 from start_hour and stopping before end_hour.
 
@@ -214,6 +232,7 @@ def _call_anthropic(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     response = client.messages.create(
         model=model,
         max_tokens=2048,
+        temperature=0,
         system=SYSTEM_PROMPT,
         messages=messages,
         tools=[TOOL_SCHEMA],
@@ -239,6 +258,7 @@ def _call_openai(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     response = client.chat.completions.create(
         model=model,
         messages=openai_messages,
+        temperature=0,
         response_format={"type": "json_schema", "json_schema": OPENAI_JSON_SCHEMA},
     )
 

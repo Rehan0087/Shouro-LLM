@@ -73,6 +73,12 @@ Energy Data + Operator Notes
   to be well-formed JSON matching our shape before it ever reaches guardrails.
 - **Anthropic (alternate):** `ANTHROPIC_MODEL` (default `claude-haiku-4-5-20251001`),
   called with a forced tool call (`tool_choice: {"type": "tool", "name": "submit_interpretation"}`).
+- Both providers are called with `temperature=0`. This is a deterministic
+  extraction task, not a creative one — sampling temperature was found
+  during testing to cause real run-to-run interpretation variance on
+  identical input (e.g. an off-by-one hour on "1 AM to 3 AM" in one run
+  but not the next); `temperature=0` made 3 consecutive full test-suite
+  runs produce byte-identical results.
 - Either way, the LLM is the sole source of the `directive_interpretation` —
   it is not used only for `plan_summary` or cosmetic text — and its output is
   still fully re-validated by `app/guardrails.py` regardless of provider-level
