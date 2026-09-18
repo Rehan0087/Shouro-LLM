@@ -6,6 +6,14 @@ An HTTP API that interprets natural-language campus operator notes with an
 LLM, deterministically validates the extracted directives, then solves a
 linear program to produce a minimum-cost 24-hour grid/solar/battery schedule.
 
+## Live deployment
+
+- **Base URL:** `https://shouro-llm.onrender.com`
+- **Health:** `GET https://shouro-llm.onrender.com/health`
+- **Optimize:** `POST https://shouro-llm.onrender.com/optimize-energy`
+- Hosted on Render (free tier) with an external keep-alive ping every 5
+  minutes to avoid cold-start delays during judging.
+
 ## Architecture
 
 ```
@@ -81,8 +89,8 @@ pip install -r requirements.txt
 # 4. Configure environment variables
 cp .env.example .env
 # edit .env and set LLM_PROVIDER + the matching API key
-#   LLM_PROVIDER=anthropic
-#   ANTHROPIC_API_KEY=sk-ant-...
+#   LLM_PROVIDER=openai
+#   OPENAI_API_KEY=sk-...
 set -a; source .env; set +a
 
 # 5. Start the service
@@ -108,11 +116,11 @@ curl -s -X POST http://localhost:8000/optimize-energy \
 
 | Variable | Required | Meaning |
 |---|---|---|
-| `LLM_PROVIDER` | no (default `anthropic`) | `anthropic` or `openai` |
-| `ANTHROPIC_API_KEY` | if provider is `anthropic` | Anthropic API key |
-| `ANTHROPIC_MODEL` | no | defaults to `claude-haiku-4-5-20251001` |
+| `LLM_PROVIDER` | no (default `openai`) | `openai` or `anthropic` |
 | `OPENAI_API_KEY` | if provider is `openai` | OpenAI API key |
 | `OPENAI_MODEL` | no | defaults to `gpt-4o-mini` |
+| `ANTHROPIC_API_KEY` | if provider is `anthropic` | Anthropic API key |
+| `ANTHROPIC_MODEL` | no | defaults to `claude-haiku-4-5-20251001` |
 | `PORT` | no | port for local `uvicorn` runs (default 8000) |
 
 No secret values are committed anywhere in this repository; `.env` is
@@ -151,18 +159,40 @@ pytest -v
 
 ## Docker
 
+### Fallback image (pullable, built by CI)
+
+Every push to `main` is built and published to GitHub Container Registry by
+[`.github/workflows/docker-publish.yml`](.github/workflows/docker-publish.yml):
+
 ```bash
-docker build -t gridwise-llm .
+docker pull ghcr.io/rehan0087/shouro-llm:latest
+
 docker run --rm -p 8000:8000 \
-  -e LLM_PROVIDER=anthropic \
-  -e ANTHROPIC_API_KEY=sk-ant-... \
-  gridwise-llm
+  -e LLM_PROVIDER=openai \
+  -e OPENAI_API_KEY=sk-... \
+  ghcr.io/rehan0087/shouro-llm:latest
 
 curl http://localhost:8000/health
 ```
 
-The image exposes port 8000, binds to `0.0.0.0`, and contains no baked-in
-credentials — all keys are supplied at `docker run` time via `-e`.
+A commit-pinned tag is also published as `ghcr.io/rehan0087/shouro-llm:<git-sha>`
+for an exact, immutable reference. The image exposes port 8000, binds to
+`0.0.0.0`, and contains no baked-in credentials — all keys are supplied at
+`docker run` time via `-e`.
+
+Note: while this repository is private, the built package is also private —
+make it public at the same time the repository is made public after the
+submission deadline (Package settings → Change visibility).
+
+### Build locally instead
+
+```bash
+docker build -t gridwise-llm .
+docker run --rm -p 8000:8000 \
+  -e LLM_PROVIDER=openai \
+  -e OPENAI_API_KEY=sk-... \
+  gridwise-llm
+```
 
 ## Known limitations
 
