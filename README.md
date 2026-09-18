@@ -231,12 +231,7 @@ docker run --rm -p 8000:8000 \
 - Requires a reachable LLM provider at request time; the team is responsible
   for API key validity, quota, and rate limits during judging (no local/
   offline model is bundled).
-- One corrective retry is attempted on a guardrail failure; if the model
-  still returns invalid structured output after that, the request fails
-  safely with HTTP 500 rather than guessing a directive.
-- The optimizer assumes organizer-valid scenarios are feasible per the
-  Problem Statement; a scenario with genuinely contradictory hard directives
-  will raise a controlled error instead of returning an invalid schedule.
+
 
 ## Dependencies
 
