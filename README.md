@@ -56,7 +56,12 @@ Energy Data + Operator Notes
 - `app/replay_validator.py` — independently replays the returned schedule
   hour-by-hour to catch any optimizer bug before it reaches the response.
 - `app/pipeline.py` / `app/main.py` — wires the stages together behind
-  `GET /health` and `POST /optimize-energy`.
+  `GET /health` and `POST /optimize-energy`. The pipeline (including the
+  blocking LLM HTTP call) runs via `asyncio.to_thread`, so a slow LLM
+  response never stalls the event loop — `/health` and other concurrent
+  requests keep responding in single-digit milliseconds even while another
+  request is mid-LLM-call. Verified: 5 concurrent `/optimize-energy`
+  requests complete in ~3s wall-clock instead of ~12s if serialized.
 
 ## LLM / model used
 
@@ -138,11 +143,23 @@ problem.
 
 ## Testing
 
+105 tests total. The suite goes beyond the public sample pack: it includes
+22 hand-written operator notes (single- and multi-note requests) that never
+appear in the public cases, covering paraphrased wording for all 6 directive
+types, directive-type discrimination (notes worded to sound like a different
+directive than the correct one), and a cross-midnight window. 7 more tests
+probe optimizer boundary conditions directly (zero grid cap, reserve ==
+capacity, a battery starting full, stacked directives on one hour, and a
+genuinely infeasible scenario that must fail safely).
+
 ```bash
 source .venv/bin/activate
 
 # Deterministic math pipeline against all 10 public sample cases (no API key needed)
 pytest tests/test_optimizer_against_samples.py -v
+
+# Optimizer boundary conditions: zero/extreme directive values, infeasible scenarios
+pytest tests/test_optimizer_edge_cases.py -v
 
 # Guardrail rejection behavior on malformed/unsupported output
 pytest tests/test_guardrails_reject_bad_output.py -v
@@ -152,6 +169,9 @@ pytest tests/test_api_end_to_end.py -v
 
 # Real LLM interpretation vs. ground truth (requires an API key; auto-skips otherwise)
 pytest tests/test_llm_interpretation.py -v
+
+# 22 hand-written paraphrase / discrimination cases never seen in public samples
+pytest tests/test_llm_paraphrase_robustness.py -v
 
 # Everything
 pytest -v

@@ -71,6 +71,42 @@ SINGLE_NOTE_CASES = [
     ("Parking permits for the east lot increase to 500 taka starting next semester.", dict(applies=False, directive_type="no_op")),
     ("IT will restart the campus wifi routers between 2 and 3 AM tonight.", dict(applies=False, directive_type="no_op")),
     ("The vice chancellor's office moved tomorrow's 10 AM meeting to 1 PM.", dict(applies=False, directive_type="no_op")),
+    # --- directive-type discrimination: worded to sound like a different
+    # directive than the correct one, so the model can't pattern-match on
+    # surface keywords (e.g. "battery" -> always reserve). ---
+    (
+        "To protect battery warranty terms, avoid drawing any extra power from it during the "
+        "6 to 7 PM evening peak.",
+        dict(applies=True, directive_type="no_discharge_window", hours=[18]),
+    ),
+    (
+        "Overcast skies are expected all afternoon, cutting panel output by around 30% "
+        "from 1 to 5 PM.",
+        dict(applies=True, directive_type="solar_reduction", hours=[13, 14, 15, 16], factor=0.7),
+    ),
+    (
+        "Ensure the campus never pulls more than 300 kWh straight from the utility line "
+        "during the 5 to 7 PM evening rush.",
+        dict(applies=True, directive_type="max_grid_window", hours=[17, 18], max_grid_kwh=300.0),
+    ),
+    (
+        "Starting next month, unused rooftop solar capacity will be sold back to the grid "
+        "under a new net-metering agreement.",
+        dict(applies=False, directive_type="no_op"),
+    ),
+    (
+        "The battery charger tripped its breaker and will stay offline for charging purposes "
+        "from 2 AM to 4 AM until a technician resets it.",
+        dict(applies=True, directive_type="no_charge_window", hours=[2, 3]),
+    ),
+    (
+        # Cross-midnight window: "11 PM to 1 AM" covers hour 23 and hour 0.
+        # Guardrails require ascending order, so the correct representation
+        # is [0, 23], not chronological [23, 0].
+        "Security wants 40 kWh guaranteed available in the battery at all times between "
+        "11 PM and 1 AM in case of a blackout.",
+        dict(applies=True, directive_type="minimum_battery_reserve", hours=[0, 23], minimum_energy_kwh=40.0),
+    ),
 ]
 
 
