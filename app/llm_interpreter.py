@@ -190,10 +190,18 @@ def _build_user_message(operator_notes: list[str], battery_capacity_kwh: float) 
     )
 
 
+# Each LLM call gets this budget. Worst case is 2 calls (1 corrective retry),
+# leaving headroom under the judge harness's 30s per-request timeout for
+# guardrail/optimizer/replay work (all sub-second).
+LLM_CALL_TIMEOUT_SECONDS = 12.0
+
+
 def _call_anthropic(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     import anthropic
 
-    client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+    client = anthropic.Anthropic(
+        api_key=os.environ["ANTHROPIC_API_KEY"], timeout=LLM_CALL_TIMEOUT_SECONDS
+    )
     model = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
 
     response = client.messages.create(
@@ -215,7 +223,7 @@ def _call_anthropic(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
 def _call_openai(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
     from openai import OpenAI
 
-    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"])
+    client = OpenAI(api_key=os.environ["OPENAI_API_KEY"], timeout=LLM_CALL_TIMEOUT_SECONDS)
     model = os.environ.get("OPENAI_MODEL", "gpt-4o-mini")
 
     openai_messages = [{"role": "system", "content": SYSTEM_PROMPT}]
