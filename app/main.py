@@ -6,7 +6,8 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import ValidationError
 
@@ -17,6 +18,14 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gridwise")
 
 app = FastAPI(title="GridWise Energy Optimization API")
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(_request, exc: RequestValidationError):
+    # Covers both malformed JSON syntax and schema-invalid bodies -- FastAPI's
+    # default for a declared body parameter is 422, but the Problem Statement
+    # requires 400 for "malformed JSON or structurally invalid request".
+    return JSONResponse(status_code=400, content={"error": "invalid request", "details": exc.errors()})
 
 
 @app.get("/", include_in_schema=False)
@@ -31,18 +40,8 @@ def health() -> HealthResponse:
     return HealthResponse(status="ok")
 
 
-@app.post("/optimize-energy")
-async def optimize_energy(request: Request):
-    try:
-        body = await request.json()
-    except Exception:
-        return JSONResponse(status_code=400, content={"error": "malformed JSON body"})
-
-    try:
-        parsed = OptimizeEnergyRequest.model_validate(body)
-    except ValidationError as exc:
-        return JSONResponse(status_code=400, content={"error": "invalid request schema", "details": exc.errors()})
-
+@app.post("/optimize-energy", response_model=OptimizeEnergyResponse)
+async def optimize_energy(parsed: OptimizeEnergyRequest):
     try:
         # run_pipeline makes a blocking LLM HTTP call; running it on a worker
         # thread keeps the event loop free so /health and other concurrent
