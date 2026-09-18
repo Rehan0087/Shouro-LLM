@@ -7,6 +7,7 @@ import asyncio
 import logging
 
 from fastapi import FastAPI
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import ValidationError
@@ -25,7 +26,10 @@ async def validation_exception_handler(_request, exc: RequestValidationError):
     # Covers both malformed JSON syntax and schema-invalid bodies -- FastAPI's
     # default for a declared body parameter is 422, but the Problem Statement
     # requires 400 for "malformed JSON or structurally invalid request".
-    return JSONResponse(status_code=400, content={"error": "invalid request", "details": exc.errors()})
+    # exc.errors() can embed non-JSON-serializable objects (e.g. a raw
+    # ValueError in ctx, raised by our own model_validators in schemas.py) --
+    # jsonable_encoder is required here, plain json.dumps crashes on those.
+    return JSONResponse(status_code=400, content={"error": "invalid request", "details": jsonable_encoder(exc.errors())})
 
 
 @app.get("/", include_in_schema=False)

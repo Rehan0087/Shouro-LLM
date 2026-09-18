@@ -55,6 +55,26 @@ def test_missing_fields_returns_400():
     assert resp.status_code == 400
 
 
+def test_custom_validator_rejection_returns_400_not_500():
+    """Regression test: our own model_validators (hours_cover_0_23,
+    notes_non_empty in app/schemas.py) raise plain ValueError, and Pydantic
+    embeds that raw exception object in the error's ctx. A naive JSONResponse
+    around exc.errors() crashes on it (TypeError: Object of type ValueError
+    is not JSON serializable) -- caught live via the Swagger UI against the
+    deployed service. jsonable_encoder is required to fix this."""
+    case = CASES[0]
+    inp = dict(case["input"])
+    # Valid 24-entry array but hours don't cover 0-23 (duplicates), which
+    # trips the hours_cover_0_23 model_validator's ValueError.
+    inp["hours"] = [dict(h, hour=23) for h in case["input"]["hours"]]
+
+    resp = client.post("/optimize-energy", json=inp)
+    assert resp.status_code == 400, resp.text
+    body = resp.json()
+    assert "error" in body
+    assert "Traceback" not in json.dumps(body)
+
+
 def test_infeasible_scenario_returns_controlled_500(monkeypatch):
     """A scenario the optimizer genuinely cannot satisfy must fail safely
     (500, no stack trace, no crash) rather than return an invalid schedule."""
