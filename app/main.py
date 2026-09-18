@@ -9,6 +9,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse, RedirectResponse
 from pydantic import ValidationError
 
@@ -19,6 +20,24 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("gridwise")
 
 app = FastAPI(title="GridWise Energy Optimization API")
+
+
+def _custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    schema = get_openapi(title=app.title, version=app.version, routes=app.routes)
+    # FastAPI auto-documents a 422 response on every route with a validated
+    # body, but our exception handler below always returns 400 instead (per
+    # the Problem Statement's exact contract) -- leaving the auto-doc in
+    # place would make /docs describe a status code this API never sends.
+    for path in schema.get("paths", {}).values():
+        for operation in path.values():
+            operation.get("responses", {}).pop("422", None)
+    app.openapi_schema = schema
+    return app.openapi_schema
+
+
+app.openapi = _custom_openapi
 
 
 @app.exception_handler(RequestValidationError)
@@ -44,7 +63,39 @@ def health() -> HealthResponse:
     return HealthResponse(status="ok")
 
 
-@app.post("/optimize-energy", response_model=OptimizeEnergyResponse)
+@app.post(
+    "/optimize-energy",
+    response_model=OptimizeEnergyResponse,
+    responses={
+        400: {
+            "description": "Malformed JSON or structurally invalid request",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "error": "invalid request",
+                        "details": [
+                            {
+                                "type": "missing",
+                                "loc": ["body", "operator_notes"],
+                                "msg": "Field required",
+                            }
+                        ],
+                    }
+                }
+            },
+        },
+        500: {
+            "description": "Controlled internal error (e.g. an infeasible scenario, "
+            "or the LLM never produced valid output after a corrective retry). "
+            "Never a raw stack trace.",
+            "content": {
+                "application/json": {
+                    "example": {"error": "unable to produce a valid schedule for this scenario"}
+                }
+            },
+        },
+    },
+)
 async def optimize_energy(parsed: OptimizeEnergyRequest):
     try:
         # run_pipeline makes a blocking LLM HTTP call; running it on a worker
